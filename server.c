@@ -12,39 +12,40 @@
 #include <time.h>
 #include <pthread.h>
 
-#define QUEUE_SIZE 5
+#define BUF_SIZE 1000
+#define QUEUE_SIZE 10
 
 struct thread_data_t
 {
-	char s_buf[100];
+	char s_in[BUF_SIZE];
+	char s_out[BUF_SIZE];
 	int s_connection_socket_descriptor;
 };
 
-//funkcja opisującą zachowanie wątku - musi przyjmować argument typu (void *) i zwracać (void *)
 void *ThreadBehavior(void *t_data)
-{
+{	
 	pthread_detach(pthread_self());
-	struct thread_data_t *th_data = (struct thread_data_t*)t_data;
-	//dostęp do pól struktury: (*th_data).pole
-	write((*th_data).s_connection_socket_descriptor, &((*th_data).s_buf), 100);
-	printf("%s\n", (*th_data).s_buf);
+	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
+	while(1) {
+		//send(th_data->s_connection_socket_descriptor, th_data->s_out, BUF_SIZE);
+		recv(th_data->s_connection_socket_descriptor, th_data->s_in, BUF_SIZE, 0);
+		if(!strcmp(th_data->s_in, "//exit")) break;
+		printf("%d ;; %s\n", th_data->s_connection_socket_descriptor, th_data->s_in);
+	}
+	close(th_data->s_connection_socket_descriptor);
+	free(th_data);
+	puts(th_data->s_in);
 	pthread_exit(NULL);
 }
 
 void handleConnection(int connection_socket_descriptor) {
-	pthread_t thread1;
+	pthread_t thread;
+	struct thread_data_t *t_data;
+	t_data = malloc(sizeof(struct thread_data_t));
 	
-	//struct thread_data_t *t_data = malloc(sizeof(struct thread_data_t));
-	//strcpy(&(t_data->s_buf), "rererere123");
-	//t_data->s_connection_socket_descriptor = connection_socket_descriptor;
+	t_data->s_connection_socket_descriptor = connection_socket_descriptor;
 	
-	struct thread_data_t t_data;
-	t_data.s_connection_socket_descriptor = connection_socket_descriptor;
-	strcpy(t_data.s_buf, "rerer123");
-	
-	pthread_create(&thread1, NULL, ThreadBehavior, (void *)&t_data);
-	//free(t_data);
-	sleep(2);
+	pthread_create(&thread, NULL, ThreadBehavior, (void *)t_data);
 }
 
 int main(int argc, char* argv[])
@@ -65,13 +66,11 @@ int main(int argc, char* argv[])
 	listen(server_socket_descriptor, QUEUE_SIZE);
 
 
-	while(1)
-	{
+	while(1) {
 		connection_socket_descriptor = accept(server_socket_descriptor, NULL, NULL);
 		handleConnection(connection_socket_descriptor);
-		close(connection_socket_descriptor);
 	}
-
+	
 	close(server_socket_descriptor);
-	return(0);
+	return 0;
 }
