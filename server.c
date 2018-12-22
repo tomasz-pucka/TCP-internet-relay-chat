@@ -14,6 +14,19 @@
 
 #define BUF_SIZE 1000
 #define QUEUE_SIZE 10
+#define NICK_SIZE 100
+
+struct users {
+	int descriptor;
+	char nick[NICK_SIZE];
+	struct users *next;
+};
+
+struct rooms {
+	unsigned int number;
+	struct users *head;
+	struct rooms *next;
+};
 
 struct thread_data_t
 {
@@ -21,6 +34,73 @@ struct thread_data_t
 	char s_out[BUF_SIZE];
 	int s_connection_socket_descriptor;
 };
+
+void printRooms(struct rooms * room) {
+	while (room) {
+		printf("%d\n", room->number);
+		room = room->next;
+	}
+}
+
+void addRoomFront(struct rooms ** head, unsigned int nr) {
+	struct rooms *new_room = (struct rooms *) malloc(sizeof(struct rooms));
+	new_room->number = nr;
+	new_room->next = *head;
+	new_room->head = NULL;
+	*head = new_room;
+}
+
+void removeRoom(struct rooms ** head, unsigned int nr) {
+	struct rooms *temp = *head;
+	struct rooms *del_room;
+	if (temp->number == nr) {
+		*head = temp->next;
+		free(temp);
+	}
+	else {
+		while (temp->next->number != nr) temp = temp->next;
+		del_room = temp->next;
+		temp->next = del_room->next;
+		free(del_room);
+	}
+}
+
+void printUsersInRoom(struct rooms * room, unsigned int nr) {
+	struct users *user;
+	while (room->number != nr) room = room->next;
+	user = room->head;
+	printf("#%d: ", nr);
+	while (user) {
+		printf("%d ; %s\t", user->descriptor, user->nick);
+		user = user->next;
+	}
+}
+
+void addUserToRoomFront(struct rooms * room, unsigned int nr, int desc, char *nick) {
+	while (room->number != nr) room = room->next;
+	struct users *new_user = (struct users *) malloc(sizeof(struct users));
+	new_user->descriptor = desc;
+	strcpy(new_user->nick, nick);
+	new_user->next = room->head;
+	room->head = new_user;
+}
+
+void removeUserFromRoom(struct rooms * room, unsigned int nr, int desc) {
+	while (room->number != nr) room = room->next;
+	struct users *temp = room->head;
+	if (temp->descriptor == desc) {
+		room->head = temp->next;
+		free(temp);
+	}
+	else {
+		while (temp->next->descriptor != desc) temp = temp->next;
+		struct users *del_user = temp->next;
+		temp->next = del_user->next;
+		free(del_user);
+	}
+}
+
+
 
 void *ThreadBehavior(void *t_data)
 {	
@@ -34,7 +114,6 @@ void *ThreadBehavior(void *t_data)
 	}
 	close(th_data->s_connection_socket_descriptor);
 	free(th_data);
-	puts(th_data->s_in);
 	pthread_exit(NULL);
 }
 
