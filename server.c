@@ -12,9 +12,9 @@
 #include <time.h>
 #include <pthread.h>
 
-#define BUF_SIZE 1000
+#define BUF_SIZE 4096
 #define QUEUE_SIZE 10
-#define NICK_SIZE 100
+#define NICK_SIZE 24
 
 struct users {
 	int descriptor;
@@ -28,18 +28,22 @@ struct rooms {
 	struct rooms *next;
 };
 
+struct rooms *rooms_list = NULL;
+
 struct thread_data_t
 {
 	char s_in[BUF_SIZE];
 	char s_out[BUF_SIZE];
-	int s_connection_socket_descriptor;
+	int s_connection_desc;
 };
 
 void printRooms(struct rooms * room) {
+	if (room == NULL) return;
 	while (room) {
-		printf("%d\n", room->number);
+		printf("%d  ", room->number);
 		room = room->next;
 	}
+	printf("\n");
 }
 
 void addRoomFront(struct rooms ** head, unsigned int nr) {
@@ -67,17 +71,24 @@ void removeRoom(struct rooms ** head, unsigned int nr) {
 
 void printUsersInRoom(struct rooms * room, unsigned int nr) {
 	struct users *user;
-	while (room->number != nr) room = room->next;
+	while (room && room->number != nr) room = room->next;
+	if (room == NULL) return;
 	user = room->head;
 	printf("#%d: ", nr);
 	while (user) {
 		printf("%d ; %s\t", user->descriptor, user->nick);
 		user = user->next;
 	}
+	printf("\n");
 }
 
-void addUserToRoomFront(struct rooms * room, unsigned int nr, int desc, char *nick) {
-	while (room->number != nr) room = room->next;
+void addUserToRoomFront(struct rooms ** head, unsigned int nr, int desc, const char *nick) {
+	struct rooms *room = *head;
+	while (room && room->number != nr) room = room->next;
+	if (room == NULL) {
+		addRoomFront(head, nr);
+		room = *head;
+	}
 	struct users *new_user = (struct users *) malloc(sizeof(struct users));
 	new_user->descriptor = desc;
 	strcpy(new_user->nick, nick);
@@ -85,12 +96,14 @@ void addUserToRoomFront(struct rooms * room, unsigned int nr, int desc, char *ni
 	room->head = new_user;
 }
 
-void removeUserFromRoom(struct rooms * room, unsigned int nr, int desc) {
+void removeUserFromRoom(struct rooms ** head, unsigned int nr, int desc) {
+	struct rooms *room = *head;
 	while (room->number != nr) room = room->next;
 	struct users *temp = room->head;
 	if (temp->descriptor == desc) {
 		room->head = temp->next;
 		free(temp);
+		if (room->head == NULL) removeRoom(head, nr);
 	}
 	else {
 		while (temp->next->descriptor != desc) temp = temp->next;
@@ -98,8 +111,8 @@ void removeUserFromRoom(struct rooms * room, unsigned int nr, int desc) {
 		temp->next = del_user->next;
 		free(del_user);
 	}
-}
 
+}
 
 
 void *ThreadBehavior(void *t_data)
@@ -107,30 +120,28 @@ void *ThreadBehavior(void *t_data)
 	pthread_detach(pthread_self());
 	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
 	while(1) {
-		//send(th_data->s_connection_socket_descriptor, th_data->s_out, BUF_SIZE);
-		recv(th_data->s_connection_socket_descriptor, th_data->s_in, BUF_SIZE, 0);
+		//send(th_data->s_connection_desc, th_data->s_out, BUF_SIZE);
+		recv(th_data->s_connection_desc, th_data->s_in, BUF_SIZE, 0);
 		if(!strcmp(th_data->s_in, "//exit")) break;
-		printf("%d ;; %s\n", th_data->s_connection_socket_descriptor, th_data->s_in);
+		printf("%d ;; %s\n", th_data->s_connection_desc, th_data->s_in);
 	}
-	close(th_data->s_connection_socket_descriptor);
+	close(th_data->s_connection_desc);
 	free(th_data);
 	pthread_exit(NULL);
 }
 
-void handleConnection(int connection_socket_descriptor) {
+void handleConnection(int connection_desc) {
 	pthread_t thread;
 	struct thread_data_t *t_data;
 	t_data = malloc(sizeof(struct thread_data_t));
-	
-	t_data->s_connection_socket_descriptor = connection_socket_descriptor;
-	
+	t_data->s_connection_desc = connection_desc;
 	pthread_create(&thread, NULL, ThreadBehavior, (void *)t_data);
 }
 
 int main(int argc, char* argv[])
 {
 	int server_socket_descriptor;
-	int connection_socket_descriptor;
+	int connection_desc;
 	char reuse_addr_val = 1;
 	struct sockaddr_in server_address;
 
@@ -146,8 +157,8 @@ int main(int argc, char* argv[])
 
 
 	while(1) {
-		connection_socket_descriptor = accept(server_socket_descriptor, NULL, NULL);
-		handleConnection(connection_socket_descriptor);
+		connection_desc = accept(server_socket_descriptor, NULL, NULL);
+		handleConnection(connection_desc);
 	}
 	
 	close(server_socket_descriptor);
