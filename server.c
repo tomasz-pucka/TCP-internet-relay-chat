@@ -119,6 +119,12 @@ void *ThreadBehavior(void *t_data)
 {	
 	pthread_detach(pthread_self());
 	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
+	recv(th_data->s_connection_desc, th_data->s_in, NICK_SIZE+10, 0);
+	char *nick, *str_room;
+	unsigned int room;
+	nick = strtok_r(str_room, ";", &str_room);
+	room = atoi(str_room);
+	addUserToRoomFront(&rooms_list, room, th_data->s_connection_desc, nick);
 	while(1) {
 		//send(th_data->s_connection_desc, th_data->s_out, BUF_SIZE);
 		recv(th_data->s_connection_desc, th_data->s_in, BUF_SIZE, 0);
