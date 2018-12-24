@@ -32,8 +32,6 @@ struct rooms *rooms_list = NULL;
 
 struct thread_data_t
 {
-	char s_in[BUF_SIZE];
-	char s_out[BUF_SIZE];
 	int s_connection_desc;
 };
 
@@ -42,7 +40,7 @@ unsigned int *getRooms(struct rooms * room, unsigned int *rooms_counter) {
 	*rooms_counter = 0;
 	while (room) {
 		(*rooms_counter)++;
-		rooms_arr = (unsigned int *) realloc(rooms_arr, sizeof(unsigned int)*(*rooms_counter));
+		rooms_arr = (unsigned int *)realloc(rooms_arr, sizeof(unsigned int)*(*rooms_counter));
 		rooms_arr[(*rooms_counter) - 1] = room->number;
 		room = room->next;
 	}
@@ -125,7 +123,7 @@ int *getOtherUsersInRoom(struct rooms * room, unsigned int nr, int sender, unsig
 	while (user) {
 		if (user->descriptor != sender) {
 			(*users_counter)++;
-			users_arr = (int *) realloc(users_arr, sizeof(int)*(*users_counter));
+			users_arr = (int *)realloc(users_arr, sizeof(int)*(*users_counter));
 			users_arr[*users_counter - 1] = user->descriptor;
 		}
 		user = user->next;
@@ -141,36 +139,38 @@ void *printUsersInRoomsThread() {
 		rooms_arr_len = 0;
 		rooms_arr = getRooms(rooms_list, &rooms_arr_len);
 		system("clear");
-		for(i=0;i<rooms_arr_len;i++){
-			printf("#%d: ", rooms_arr[i]);
+		for (i = 0; i < rooms_arr_len; i++) {
 			printUsersInRoom(rooms_list, rooms_arr[i]);
 		}
 		sleep(1);
 	}
 }
 
-void *ThreadBehavior(void *t_data)
-{	
-	char *nick, *str_room_number, *message;
-	int *other_users, i
+void *clientThread(void *t_data)
+{
+	char text_buf[BUF_SIZE + NICK_SIZE + 1], message[BUF_SIZE + NICK_SIZE + 1], header[NICK_SIZE + 1];
+	char *nick, *str_room_number;
+	int *other_users, i;
 	unsigned int other_users_len, room_number;
 	pthread_detach(pthread_self());
 	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
-	recv(th_data->s_connection_desc, th_data->s_in, NICK_SIZE+10, 0); // receive room;nick from client
-	str_room_number = strtok_r(th_data->s_in, ";", &nick); // room;nick
+	recv(th_data->s_connection_desc, text_buf, NICK_SIZE + 10, 0); // receive "room;nick" from client
+	str_room_number = strtok_r(text_buf, ";", &nick); // room;nick
 	room_number = atoi(str_room_number);
 	addUserToRoomFront(&rooms_list, room_number, th_data->s_connection_desc, nick);
-	strcat(nick, ";");
-	while(1) {
-		//send(th_data->s_connection_desc, th_data->s_out, BUF_SIZE);
+	strcpy(header, nick);
+	strcat(header, ";");
+	while (1) {
 		other_users_len = 0;
-		recv(th_data->s_connection_desc, th_data->s_in, BUF_SIZE, 0);
-		if(!strcmp(th_data->s_in, ";;exit")) {
+		other_users = NULL;
+		recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0);
+		if (!strcmp(text_buf, ";;exit")) {
 			removeUserFromRoom(&rooms_list, room_number, th_data->s_connection_desc);
 			break;
-		}	
-		message = nick;
-		strcat(message, th_data->s_in);
+		}
+		//message: "nick;content"
+		strcpy(message, header);
+		strcat(message, text_buf);
 		other_users = getOtherUsersInRoom(rooms_list, room_number, th_data->s_connection_desc, &other_users_len);
 		for (i = 0; i < other_users_len; i++) {
 			send(other_users[i], message, BUF_SIZE, 0);
@@ -186,7 +186,7 @@ void handleConnection(int connection_desc) {
 	struct thread_data_t *t_data;
 	t_data = malloc(sizeof(struct thread_data_t));
 	t_data->s_connection_desc = connection_desc;
-	pthread_create(&thread, NULL, ThreadBehavior, (void *)t_data);
+	pthread_create(&thread, NULL, clientThread, (void *)t_data);
 }
 
 int main(int argc, char* argv[])
@@ -207,12 +207,12 @@ int main(int argc, char* argv[])
 	bind(server_socket_descriptor, (struct sockaddr*)&server_address, sizeof(struct sockaddr));
 	listen(server_socket_descriptor, QUEUE_SIZE);
 	pthread_create(&thread_main, NULL, printUsersInRoomsThread, NULL);
-	
-	while(1) {
+
+	while (1) {
 		connection_desc = accept(server_socket_descriptor, NULL, NULL);
 		handleConnection(connection_desc);
 	}
-	
+
 	close(server_socket_descriptor);
 	return 0;
 }
