@@ -34,12 +34,14 @@ int main() {
 	connection_socket_descriptor = socket(AF_INET, SOCK_STREAM, 0);
 	connect(connection_socket_descriptor, (struct sockaddr*)&server_address, sizeof(server_address));
 	system("clear");
-	puts("type room;nick");
-	scanf("%s", text_buf);
+	printf("type room;nick\n");
+	fgets(text_buf, BUF_SIZE, stdin);
+	text_buf[strcspn(text_buf, "\n")] = 0;
 	send(connection_socket_descriptor, text_buf, BUF_SIZE, 0); // room;nick
 	pthread_create(&thread, NULL, printIncomingMessagesThread, NULL);
 	while(1) {
-		scanf("%s", text_buf);
+		fgets(text_buf, BUF_SIZE, stdin);
+		text_buf[strcspn(text_buf, "\n")] = 0;
 		send(connection_socket_descriptor, text_buf, BUF_SIZE, 0);
 		if(!strcmp(text_buf, ";;exit")) break;
 	}

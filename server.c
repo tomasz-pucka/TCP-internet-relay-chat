@@ -154,7 +154,7 @@ void *clientThread(void *t_data)
 	unsigned int other_users_len, room_number;
 	pthread_detach(pthread_self());
 	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
-	recv(th_data->s_connection_desc, text_buf, NICK_SIZE + 10, 0); // receive "room;nick" from client
+	recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0); // receive "room;nick" from client
 	str_room_number = strtok_r(text_buf, ";", &nick); // room;nick
 	room_number = atoi(str_room_number);
 	addUserToRoomFront(&rooms_list, room_number, th_data->s_connection_desc, nick);
