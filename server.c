@@ -14,7 +14,7 @@
 #include <errno.h>
 
 #define BUF_SIZE 4096
-#define QUEUE_SIZE 2
+#define QUEUE_SIZE 100
 #define NICK_SIZE 24
 
 char ip_addr[200] = "127.0.0.1";
@@ -50,6 +50,22 @@ unsigned int *getRooms(struct rooms * room, unsigned int *rooms_counter) {
 		room = room->next;
 	}
 	return rooms_arr;
+}
+
+char *getRoomsStr(struct rooms * room) {
+	char *rooms_str, room_number_str[10];
+	unsigned int rooms_str_len = 0;
+	rooms_str = (char *)malloc(sizeof(char));
+	strcpy(rooms_str, "\0");
+	while (room) {
+		sprintf(room_number_str, "%d", room->number);
+		rooms_str_len += strlen(room_number_str) + 1;
+		rooms_str = (char *)realloc(rooms_str, sizeof(char *)*(rooms_str_len + 1));
+		strcat(rooms_str, room_number_str);
+		strcat(rooms_str, ";");
+		room = room->next;
+	}
+	return rooms_str;
 }
 
 void addRoomFront(struct rooms ** head, unsigned int nr) {
@@ -159,11 +175,15 @@ void *printUsersInRoomsThread() {
 void *clientThread(void *t_data)
 {
 	char text_buf[BUF_SIZE + 1], message[BUF_SIZE + NICK_SIZE + 1], header[NICK_SIZE + 1];
-	char *str_room_number, *nick;
+	char *str_room_number, *nick, *rooms_str;
 	int *other_users = NULL, i, recv_code, send_code;
 	unsigned int other_users_len = 0, room_number;
 	pthread_detach(pthread_self());
 	struct thread_data_t *th_data = (struct thread_data_t *)t_data;
+	rooms_str = getRoomsStr(rooms_list);
+	send_code = send(th_data->s_connection_desc, rooms_str, BUF_SIZE, 0);
+	free(rooms_str);
+	if (send_code == -1) goto clientExitRoutine;
 	recv_code = recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0); // receive "room;nick" string from client
 	if (recv_code == -1) goto clientExitRoutine;
 	str_room_number = strtok_r(text_buf, ";", &nick); // room;nick divider
@@ -215,11 +235,11 @@ clientExitRoutine:
 }
 
 void handleConnection(int connection_desc) {
-	pthread_t thread;
+	pthread_t client_thread;
 	struct thread_data_t *t_data;
 	t_data = malloc(sizeof(struct thread_data_t));
 	t_data->s_connection_desc = connection_desc;
-	pthread_create(&thread, NULL, clientThread, (void *)t_data);
+	pthread_create(&client_thread, NULL, clientThread, (void *)t_data);
 }
 
 int main(int argc, char* argv[])
