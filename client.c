@@ -26,7 +26,6 @@ void *printIncomingMessagesThread() {
 int main() {
 	pthread_t thread;
 	struct sockaddr_in server_address;
-
 	memset(&server_address, 0, sizeof(struct sockaddr));
 	server_address.sin_family = AF_INET;
 	inet_pton(AF_INET, "127.0.0.1", &(server_address.sin_addr));
