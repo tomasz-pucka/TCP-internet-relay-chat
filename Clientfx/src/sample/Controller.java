@@ -9,19 +9,23 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
 
-import javax.xml.bind.SchemaOutputResolver;
+import javax.swing.*;
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.List;
+import java.util.Collection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Controller {
-
 
 
     @FXML
@@ -44,15 +48,19 @@ public class Controller {
     Button btn_snd_mssg;
     @FXML
     TextField message;
+    @FXML
+    TextArea msg;
 
-    private static Socket clientSocket;
+    public static Socket clientSocket;
     private static String roomList;
     private static boolean changeLabel = false;
     private static String userList;
     private static boolean changeUserList = false;
     private static boolean startChat = false;
     private static String nickStr;
+    public static String msgFromThread = "";
 
+    private static String tempMsg = "startValue";
     public void buttonCreateSocket(ActionEvent event) throws IOException {
 
         System.out.println("Tworze socket");
@@ -103,39 +111,80 @@ public class Controller {
         }
 
 
+        startChat = true;
         Parent tableViewParent = FXMLLoader.load(getClass().getResource("Chat.fxml"));
         Scene tableViewScene = new Scene(tableViewParent);
         Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
         window.setScene(tableViewScene);
         window.show();
-        startChat = true;
     }
 
-    public void initialize() throws IOException {
+    public void initialize() {
 
         if(changeLabel)
             room_list.setText("Available rooms: " + roomList);
         if(changeUserList)
             users.setText("Users: \n" + "you \n" + userList);
         if(startChat) {
-            receiveMessage();
+            System.out.println("start chat");
+            Thread getMessageThread;
+            Runnable getMessageRun;
+            getMessageRun = new GetMessageThread();
+            getMessageThread = new Thread(getMessageRun);
+            getMessageThread.start();
+            update();
+
+            System.out.println("TEST");
+
+            startChat = false;
         }
     }
-    public void receiveMessage() throws IOException {
 
-        while(true) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            String serverMessage = reader.readLine();
-            System.out.println(serverMessage);
-        }
+    private void update() {
 
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(true) {
+                    Platform.runLater(new Runnable() {
+                        @Override public void run() {
+                            if(!tempMsg.equals(msgFromThread)) {
+                                tempMsg = msgFromThread;
+                                msg.appendText(msgFromThread + "\n");
+                            }
+                        }
+                    });
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(Controller.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            }
+        });
+        thread.start();
     }
+
+    private void updateMessage(String message) {
+
+        msg.appendText(message + "\n");
+    }
+
+    public void refreshMessages(ActionEvent event) {
+
+        updateMessage(msgFromThread);
+        msgFromThread = "";
+    }
+
+
 
     public void sendMessage(ActionEvent event) throws IOException {
 
         String clientMessage = nickStr+";"+message.getText();
         PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
         writer.println(clientMessage);
-        receiveMessage();
+        updateMessage(clientMessage);
+
     }
+
 }
