@@ -27,8 +27,8 @@
             </rowConstraints>
             <children>
                 <Button fx:id="btn_sckt_crt" mnemonicParsing="false" onAction="#buttonCreateSocket" prefHeight="40.0" prefWidth="140.0" text="Connect" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-                <TextField fx:id="port" text="1234" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-                <TextField fx:id="ip" text="127.0.0.1" GridPane.columnIndex="1" />
+                <TextField fx:id="port" promptText="PORT" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                <TextField fx:id="ip" promptText="IP" GridPane.columnIndex="1" />
             </children>
         </GridPane>
     </children>

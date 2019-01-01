@@ -11,17 +11,14 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.AnchorPane;
 import javafx.stage.Stage;
 
-import javax.swing.*;
-import java.awt.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+
+import java.io.*;
 import java.net.Socket;
-import java.util.Collection;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -43,7 +40,7 @@ public class Controller {
     @FXML
     Label room_list;
     @FXML
-    Label users;
+    TextArea users;
     @FXML
     Button btn_snd_mssg;
     @FXML
@@ -60,7 +57,11 @@ public class Controller {
     private static String nickStr;
     public static String msgFromThread = "";
 
+    public static boolean wait = false;
+
     private static String tempMsg = "startValue";
+
+    //wybieranie serwera
     public void buttonCreateSocket(ActionEvent event) throws IOException {
 
         System.out.println("Tworze socket");
@@ -86,7 +87,7 @@ public class Controller {
         window.show();
     }
 
-
+    //wybranie nicku i pokoju
     public void buttonSendNickname(ActionEvent event) throws IOException {
 
         changeLabel = false;
@@ -95,51 +96,69 @@ public class Controller {
         System.out.println("room " + room.getText());
         nickStr = nick.getText();
 
-        String clientMessage = room.getText()+";"+nick.getText();
-        PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
-        writer.println(clientMessage);
+        if(nickStr.length() < 15 && Integer.parseInt(room.getText()) > 0 && Integer.parseInt(room.getText()) < 31) {
 
+            OutputStream os0 = clientSocket.getOutputStream();
+            String msgEntry = room.getText()+";"+nick.getText();
+            os0.write(msgEntry.getBytes());
 
-        BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        String serverMessage = reader.readLine();
-        if(serverMessage.length()>2) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            String serverMessage = reader.readLine();
+            if(serverMessage.length()>2) {
 
-            userList = serverMessage.substring(2);
-            userList = userList.replaceAll(";", ", ");
-            System.out.println("users: " + userList);
-            changeUserList = true;
+                userList = serverMessage.substring(2);
+                userList = userList.replaceAll(";", ", ");
+                System.out.println("users: " + userList);
+                changeUserList = true;
+            }
+
+            startChat = true;
+            Parent tableViewParent = FXMLLoader.load(getClass().getResource("Chat.fxml"));
+            Scene tableViewScene = new Scene(tableViewParent);
+            Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            window.setScene(tableViewScene);
+            window.show();
+        }
+        else {
+
         }
 
-
-        startChat = true;
-        Parent tableViewParent = FXMLLoader.load(getClass().getResource("Chat.fxml"));
-        Scene tableViewScene = new Scene(tableViewParent);
-        Stage window = (Stage) ((Node) event.getSource()).getScene().getWindow();
-        window.setScene(tableViewScene);
-        window.show();
     }
 
+    //metoda wywolywana przy kazdej inicjalizacji sceny
     public void initialize() {
 
+        boolean flag = true;
+
+        //scena wybierania pokoju
         if(changeLabel)
             room_list.setText("Available rooms: " + roomList);
-        if(changeUserList)
-            users.setText("Users: \n" + "you \n" + userList);
+
+        //przetworzenie odebranej od serwera listy uzytkownikow
+        if(changeUserList){
+
+            userList = userList.replaceAll(", ","\n");
+            users.setText("USERS:\n you \n" + userList);
+            flag = false;
+            changeUserList = false;
+        }
+
+        //scena chatu
         if(startChat) {
-            System.out.println("start chat");
+
+            if(flag)
+                users.setText("USERS:\nyou \n");
             Thread getMessageThread;
             Runnable getMessageRun;
             getMessageRun = new GetMessageThread();
             getMessageThread = new Thread(getMessageRun);
             getMessageThread.start();
             update();
-
-            System.out.println("TEST");
-
             startChat = false;
         }
     }
 
+    //przetwazanie wiadomosci odebranej z serwera
     private void update() {
 
         Thread thread = new Thread(new Runnable() {
@@ -149,8 +168,26 @@ public class Controller {
                     Platform.runLater(new Runnable() {
                         @Override public void run() {
                             if(!tempMsg.equals(msgFromThread)) {
+
+                                String modifiedMsg = msgFromThread;
                                 tempMsg = msgFromThread;
-                                msg.appendText(msgFromThread + "\n");
+                                if(tempMsg.length() > 2) {
+
+                                    System.out.println(tempMsg.substring(0,2));
+                                    if(tempMsg.substring(0,2).equals(";;")) {
+
+
+                                        modifiedMsg = modifiedMsg.substring(2);
+                                        int firstSemicolon = modifiedMsg.indexOf(";");
+                                        String actionUser = modifiedMsg.substring(0,firstSemicolon);
+                                        updateUsers(actionUser, modifiedMsg.substring(firstSemicolon+1));
+                                        System.out.println("USER " + actionUser);
+                                        System.out.println("Wiadomosc " + modifiedMsg.substring(firstSemicolon+1)+";");
+                                    }
+                                    else
+                                        updateMessage(msgFromThread);
+                                }
+                                wait = false;
                             }
                         }
                     });
@@ -165,26 +202,57 @@ public class Controller {
         thread.start();
     }
 
+    //wyswietlanie wiadomosci w oknie chatu
     private void updateMessage(String message) {
 
+        //zamiana srednikow oddzielajacych nick od wiadomosci na dwukropek
+        message = message.replaceAll(";", ": ");
         msg.appendText(message + "\n");
     }
 
-    public void refreshMessages(ActionEvent event) {
+    //odswiezanie listy urzytkownikow
+    private void updateUsers(String user, String action) {
 
-        updateMessage(msgFromThread);
-        msgFromThread = "";
+        String tempUsers = users.getText();
+        String newUsersList = "";
+
+        List<String> list = new ArrayList<>(Arrays.asList(tempUsers.split("\n")));
+
+        System.out.println(list.indexOf(user));
+
+        //dodawanie do listy uzytkownikow
+        if(action.equals("join;")) {
+
+            users.appendText(user + "\n");
+            msg.appendText(user + " join\n"); //
+        }
+        //usuwanie z listy uzytkownikow
+        if(action.equals("leave;")) {
+
+            list.remove(user);
+            for(int i = 0; i <list.size(); i++) {
+                System.out.println(i + ": " + list.get(i));
+                newUsersList = newUsersList.concat(list.get(i) + "\n");
+            }
+
+            users.setText(newUsersList);
+            msg.appendText(user + " leaves\n");
+        }
+
     }
 
 
 
+
+    //wysylanie wiomosci
     public void sendMessage(ActionEvent event) throws IOException {
 
-        String clientMessage = nickStr+";"+message.getText();
+        String clientMessage = message.getText();
         PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
+        System.out.println(clientMessage);
         writer.println(clientMessage);
-        updateMessage(clientMessage);
-
+        updateMessage(nickStr + ";" + clientMessage);
+        message.setText("");
     }
 
 }
