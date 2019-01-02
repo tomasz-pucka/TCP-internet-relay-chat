@@ -18,8 +18,8 @@
 #define NICK_SIZE 24
 
 //nick nie moze zawierac znaku ";"
-//klient rozlacza sie wysylajac wiadomosc o tresci ";;exit"
-//maksymalna liczba pokojow: 100
+//maksymalna liczba pokojow: 30
+//maksymalna liczba znakow w nicku: 15
 
 char ip_addr[20] = "127.0.0.1";
 int port_nr = 1234;
