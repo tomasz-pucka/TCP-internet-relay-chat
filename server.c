@@ -18,13 +18,13 @@
 #define NICK_SIZE 24
 
 //nick nie moze zawierac znaku ";"
-//lista nickow przesylana w formie ";;nick01;nick02;nick03;"
-//lista numerow pokojow przesylana raz przed wybraniem pokoju przez klienta w formie ";;1;2;3;"
 //klient rozlacza sie wysylajac wiadomosc o tresci ";;exit"
+//maksymalna liczba pokojow: 100
 
-char ip_addr[200] = "127.0.0.1";
+char ip_addr[20] = "127.0.0.1";
 int port_nr = 1234;
 char accept_error = 0, recv_error = 0, send_error = 0;
+pthread_mutex_t main_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 struct users {
 	int descriptor;
@@ -44,21 +44,17 @@ struct client_main_thread_data {
 	int s_connection_desc;
 };
 
-/*struct nicks_sender_thread_data {
-	unsigned int number;
-	int descriptor;
-	char exit;
-};*/
-
 unsigned int *getRooms(struct rooms * room, unsigned int *rooms_counter) {
 	unsigned int *rooms_arr = NULL;
 	*rooms_counter = 0;
+	pthread_mutex_lock(&main_mutex);
 	while (room) {
 		(*rooms_counter)++;
 		rooms_arr = (unsigned int *)realloc(rooms_arr, sizeof(unsigned int)*(*rooms_counter));
 		rooms_arr[(*rooms_counter) - 1] = room->number;
 		room = room->next;
 	}
+	pthread_mutex_unlock(&main_mutex);
 	return rooms_arr;
 }
 
@@ -67,6 +63,7 @@ char *getRoomsStr(struct rooms * room) {
 	unsigned int rooms_str_len = 3;
 	rooms_str = (char *)malloc(3*sizeof(char));
 	strcpy(rooms_str, ";;");
+	pthread_mutex_lock(&main_mutex);
 	while (room) {
 		sprintf(room_number_str, "%d", room->number);
 		rooms_str_len += strlen(room_number_str) + 1;
@@ -75,14 +72,15 @@ char *getRoomsStr(struct rooms * room) {
 		strcat(rooms_str, ";");
 		room = room->next;
 	}
+	pthread_mutex_unlock(&main_mutex);
 	return rooms_str;
 }
 
 void addRoomFront(struct rooms ** head, unsigned int nr) {
 	struct rooms *new_room = (struct rooms *) malloc(sizeof(struct rooms));
 	new_room->number = nr;
-	new_room->next = *head;
 	new_room->head = NULL;
+	new_room->next = *head;
 	*head = new_room;
 }
 
@@ -115,20 +113,25 @@ void printUsersInRoom(struct rooms * room, unsigned int nr) {
 }
 
 void addUserToRoomFront(struct rooms ** head, unsigned int nr, int desc, const char *nick) {
+	pthread_mutex_lock(&main_mutex);
 	struct rooms *room = *head;
 	while (room && room->number != nr) room = room->next;
 	if (room == NULL) {
 		addRoomFront(head, nr);
 		room = *head;
 	}
+	pthread_mutex_unlock(&main_mutex);
 	struct users *new_user = (struct users *) malloc(sizeof(struct users));
 	new_user->descriptor = desc;
 	strcpy(new_user->nick, nick);
+	pthread_mutex_lock(&main_mutex);
 	new_user->next = room->head;
 	room->head = new_user;
+	pthread_mutex_unlock(&main_mutex);
 }
 
 void removeUserFromRoom(struct rooms ** head, unsigned int nr, int desc) {
+	pthread_mutex_lock(&main_mutex);
 	struct rooms *room = *head;
 	while (room->number != nr) room = room->next;
 	struct users *temp = room->head;
@@ -143,14 +146,18 @@ void removeUserFromRoom(struct rooms ** head, unsigned int nr, int desc) {
 		temp->next = del_user->next;
 		free(del_user);
 	}
+	pthread_mutex_unlock(&main_mutex);
 }
 
 int *getOtherUsersInRoom(struct rooms * room, unsigned int nr, int sender, unsigned int *users_counter) {
 	int *users_arr = NULL;
 	struct users *user;
 	*users_counter = 0;
+	pthread_mutex_lock(&main_mutex);
 	while (room && room->number != nr) room = room->next;
+	pthread_mutex_unlock(&main_mutex);
 	if (room == NULL) return NULL;
+	pthread_mutex_lock(&main_mutex);
 	user = room->head;
 	while (user) {
 		if (user->descriptor != sender) {
@@ -160,6 +167,7 @@ int *getOtherUsersInRoom(struct rooms * room, unsigned int nr, int sender, unsig
 		}
 		user = user->next;
 	}
+	pthread_mutex_unlock(&main_mutex);
 	return users_arr;
 }
 
@@ -169,8 +177,11 @@ char *getOtherNicksInRoom(struct rooms * room, unsigned int nr, int sender) {
 	nicks_str = (char *)malloc(3*sizeof(char));
 	strcpy(nicks_str, ";;");
 	struct users *user;
+	pthread_mutex_lock(&main_mutex);
 	while (room && room->number != nr) room = room->next;
+	pthread_mutex_unlock(&main_mutex);
 	if (room == NULL) return NULL;
+	pthread_mutex_lock(&main_mutex);
 	user = room->head;
 	while (user) {
 		if (user->descriptor != sender) {
@@ -181,31 +192,26 @@ char *getOtherNicksInRoom(struct rooms * room, unsigned int nr, int sender) {
 		}
 		user = user->next;
 	}
+	pthread_mutex_unlock(&main_mutex);
 	return nicks_str;
 }
 
-/*void *nicksSenderThread(void *t_data) {
-	char *nicks_str;
-	struct nicks_sender_thread_data *th_data = (struct nicks_sender_thread_data *)t_data;
-	while(!th_data->exit) {
-		free(nicks_str);
-		nicks_str = getOtherNicksInRoom(rooms_list, th_data->number, th_data->descriptor);
-		if (nicks_str == NULL) break;
-		if (th_data->exit || send(th_data->descriptor, nicks_str, BUF_SIZE, 0) == -1) break;
-		sleep(2);
-	}
-	free(nicks_str);
-	pthread_exit(NULL);
-}*/
+int ssend(int descriptor, char * buf, size_t len) { // dodaje "\n" na koncu wysylanego tekstu
+	int send_code;
+	strcat(buf, "\n");
+	send_code = send(descriptor, buf, len, 0);
+	if (send_code == -1)	send_error = 1;
+	return send_code;
+}
 
-void *printUsersInRoomsThread() {
+void *printUsersInRoomsThread() { // pomocniczy watek do wyswietlania pokojow i uzytkownikow w konsoli
 	pthread_detach(pthread_self());
 	unsigned int *rooms_arr = NULL, rooms_arr_len, i;
 	while (1) {
 		free(rooms_arr);
 		rooms_arr = getRooms(rooms_list, &rooms_arr_len);
 		system("clear");
-		printf("IP: %s, PORT: %d\n", ip_addr, port_nr);
+		printf("IP: %sPORT: %d\n", ip_addr, port_nr);
 		for (i = 0; i < rooms_arr_len; i++) {
 			printUsersInRoom(rooms_list, rooms_arr[i]);
 		}
@@ -217,7 +223,7 @@ void *printUsersInRoomsThread() {
 	pthread_exit(NULL);
 }
 
-void *clientThread(void *t_data)
+void *clientThread(void *t_data) // glowny watek do obslugi pojedynczego klienta
 {
 	pthread_detach(pthread_self());
 	char text_buf[BUF_SIZE + 1], message[BUF_SIZE + NICK_SIZE + 1], header[NICK_SIZE + 1];
@@ -226,54 +232,42 @@ void *clientThread(void *t_data)
 	unsigned int other_users_len = 0, room_number;
 	struct client_main_thread_data *th_data = (struct client_main_thread_data *)t_data;
 	rooms_str = getRoomsStr(rooms_list);
-	send_code = send(th_data->s_connection_desc, rooms_str, BUF_SIZE, 0);
+	send_code = ssend(th_data->s_connection_desc, rooms_str, BUF_SIZE); // 1. serwer wysyla do klienta liste pokojow w postaci tekstu np. ";;1;2;3;4;"
 	free(rooms_str);
 	if (send_code == -1) goto clientExitRoutine;
-	recv_code = recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0); // receive "room;nick" string from client
+	recv_code = recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0); // 2. serwer otrzymuje od klienta wybrany numer pokoju i nick w postaci tekstu np. "1;nickname"
 	if (recv_code == -1) goto clientExitRoutine;
-	str_room_number = strtok_r(text_buf, ";", &nick); // room;nick divider
+	str_room_number = strtok_r(text_buf, ";", &nick); // "room;nick" divider by ";"
 	room_number = atoi(str_room_number);
 	addUserToRoomFront(&rooms_list, room_number, th_data->s_connection_desc, nick);
 	nicks_str = getOtherNicksInRoom(rooms_list, room_number, th_data->s_connection_desc);
-	send_code = send(th_data->s_connection_desc, nicks_str, BUF_SIZE, 0);
+	ssend(th_data->s_connection_desc, nicks_str, BUF_SIZE); // 3. serwer wysyla do klienta liste nickow uzytkownikow znajdujacych sie w okreslonym pokoju (bez nicku dolaczajacego klienta) w postaci tekstu np. ";;user01;user02;user03;"
 	free(nicks_str);
-	if (send_code == -1) send_error = 1;
 	other_users = getOtherUsersInRoom(rooms_list, room_number, th_data->s_connection_desc, &other_users_len);
 	strcpy(header, nick);
 	strcat(header, ";");
 	strcpy(message, ";;");
 	strcat(message, header);
-	strcat(message, "join");
-	for (i = 0; i < other_users_len; i++) { 
-		send_code = send(other_users[i], message, BUF_SIZE, 0); 
-		if (send_code == -1) send_error = 1;
-	}
-	while (1) {
+	strcat(message, "join;");
+	for (i = 0; i < other_users_len; i++) ssend(other_users[i], message, BUF_SIZE); // 4. serwer wysyla do pozostalych uzytkownikow w pokoju wiadomosc o dolaczeniu klienta w postaci tekstu np. ";;user01;join;". klienci aktualizuja liste uzytkownikow w okreslonym pokoju
+	while (1) { // petla, w ktorej serwer odbiera wiadomosci od klienta, a nastepnie rozysla je do pozostalych klientow w pokoju
 		free(other_users);
-		recv_code = recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0);
+		recv_code = recv(th_data->s_connection_desc, text_buf, BUF_SIZE, 0); // serwer oczekuje na wiadomosc, ktora klient chce wyslac do pozostalych uzytkownikow w pokoju
 		if (recv_code > 0) {
 			strcpy(message, header);
 			strcat(message, text_buf);
 			other_users = getOtherUsersInRoom(rooms_list, room_number, th_data->s_connection_desc, &other_users_len);
-			for (i = 0; i < other_users_len; i++) { 
-				send_code = send(other_users[i], message, BUF_SIZE, 0); 
-				if (send_code == -1) send_error = 1;
-			}
+			for (i = 0; i < other_users_len; i++) ssend(other_users[i], message, BUF_SIZE); // w przypadku pomyslnego odebrania wiadomosci, wiadomosc jest rozsylana do pozostalych uzytkownikow pokoju
 		}
 		else if (!strcmp(text_buf, ";;exit") || recv_code == 0) { 
 			other_users = getOtherUsersInRoom(rooms_list, room_number, th_data->s_connection_desc, &other_users_len);
 			strcpy(message, ";;");
 			strcat(message, header);
-			strcat(message, "leave");
-			for (i = 0; i < other_users_len; i++) { 
-				send_code = send(other_users[i], message, BUF_SIZE, 0); 
-				if (send_code == -1) send_error = 1;
-			}
+			strcat(message, "leave;");
+			for (i = 0; i < other_users_len; i++) ssend(other_users[i], message, BUF_SIZE); // w przypadku wyjscia klienta z pokoju lub wylaczenia programu, do pozostalych uzytkownikow w pokoju wysylana jest wiadomosc w postaci tekstu np. ";;user01;leave;"
 			break;
 		}
-		else if (recv_code == -1) {
-			recv_error = 1;
-		}
+		else if (recv_code == -1) recv_error = 1;
 	}
 	free(other_users);
 	removeUserFromRoom(&rooms_list, room_number, th_data->s_connection_desc);
@@ -300,10 +294,10 @@ int main(int argc, char* argv[])
 
 	struct sockaddr_in server_address;
 	memset(&server_address, 0, sizeof(struct sockaddr));
-	//printf("type IP address for server: ");
-	//scanf("%s", ip_addr);
-	//printf("type port for server: ");
-	//scanf("%d", &port_nr);
+	printf("type IP address for server: ");
+	fgets(ip_addr, 20, stdin);
+	printf("type port for server: ");
+	scanf("%d", &port_nr);
 	server_address.sin_family = AF_INET;
 	inet_pton(AF_INET, ip_addr, &(server_address.sin_addr));
 	server_address.sin_port = htons(port_nr);
@@ -315,7 +309,7 @@ int main(int argc, char* argv[])
 	if (error_code == -1) goto tcpServerError;
 	error_code = listen(server_socket_descriptor, QUEUE_SIZE);
 	if (error_code == -1) goto tcpServerError;
-	//pthread_create(&thread_main, NULL, printUsersInRoomsThread, NULL);
+	pthread_create(&thread_main, NULL, printUsersInRoomsThread, NULL);
 	while (1) {
 		connection_desc = accept(server_socket_descriptor, NULL, NULL);
 		if (connection_desc == -1) { 
