@@ -11,7 +11,6 @@
       <TextField fx:id="nick" layoutX="204.0" layoutY="136.0" promptText="nickname" />
       <TextField fx:id="room" layoutX="204.0" layoutY="198.0" promptText="room" />
       <Label id="room_list" fx:id="room_list" alignment="CENTER" layoutX="1.0" layoutY="79.0" prefHeight="49.0" prefWidth="561.0" text="Are rooms are empty" textAlignment="JUSTIFY" />
-      <Label layoutX="359.0" layoutY="141.0" text="(max 15 characters)" />
-      <Label layoutX="359.0" layoutY="203.0" text="(between 1 - 30 )" />
+      <Label layoutX="1.0" layoutY="14.0" prefHeight="57.0" prefWidth="561.0" text="You can choose your nickname and room. Nickname can have max 15 characters and cannot contain semicolons. Room has to be between 1 and 30. You can find available rooms below." textAlignment="CENTER" textOverrun="LEADING_ELLIPSIS" wrapText="true" />
    </children>
 </AnchorPane>
