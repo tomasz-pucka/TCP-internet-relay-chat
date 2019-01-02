@@ -14,6 +14,7 @@ import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
 
+import javax.swing.*;
 import java.io.*;
 import java.net.Socket;
 import java.util.List;
@@ -96,7 +97,8 @@ public class Controller {
         System.out.println("room " + room.getText());
         nickStr = nick.getText();
 
-        if(nickStr.length() < 15 && Integer.parseInt(room.getText()) > 0 && Integer.parseInt(room.getText()) < 31) {
+        if(nickStr.length() < 15 && Integer.parseInt(room.getText()) > 0 && Integer.parseInt(room.getText()) < 31
+                && !nickStr.contains(";")) {
 
             OutputStream os0 = clientSocket.getOutputStream();
             String msgEntry = room.getText()+";"+nick.getText();
@@ -119,10 +121,15 @@ public class Controller {
             window.setScene(tableViewScene);
             window.show();
         }
-        else {
-
+        else if(nickStr.contains(";")) {
+            JOptionPane.showMessageDialog(null, "nickname cannot contain semicolon(;)");
         }
-
+        else if(nickStr.length() >= 15) {
+            JOptionPane.showMessageDialog(null, "nickname has to have less or equal 15 characters");
+        }
+        else if(Integer.parseInt(room.getText()) <= 0 || Integer.parseInt(room.getText()) >= 31 ) {
+            JOptionPane.showMessageDialog(null, "room number has to be beetwen 1 and 30");
+        }
     }
 
     //metoda wywolywana przy kazdej inicjalizacji sceny
