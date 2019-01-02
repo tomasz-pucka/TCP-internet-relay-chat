@@ -1,3 +1,5 @@
+//WERSJA TESTOWA DO PISANIA SERWERA
+
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
