@@ -101,7 +101,8 @@ public class Controller {
                 && !nickStr.contains(";")) {
 
             OutputStream os0 = clientSocket.getOutputStream();
-            String msgEntry = room.getText()+";"+nick.getText();
+            String msgEntry = room.getText()+";"+nick.getText() + "\0";
+            os0.flush();
             os0.write(msgEntry.getBytes());
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -180,7 +181,7 @@ public class Controller {
                                 tempMsg = msgFromThread;
                                 if(tempMsg.length() > 2) {
 
-                                    System.out.println(tempMsg.substring(0,2));
+                                    //System.out.println(tempMsg.substring(0,2));
                                     if(tempMsg.substring(0,2).equals(";;")) {
 
 
@@ -254,11 +255,18 @@ public class Controller {
     //wysylanie wiomosci
     public void sendMessage(ActionEvent event) throws IOException {
 
-        String clientMessage = message.getText();
-        PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
-        System.out.println(clientMessage);
-        writer.println(clientMessage);
-        updateMessage(nickStr + ";" + clientMessage);
+        OutputStream os1 = clientSocket.getOutputStream();
+        String msgEntry = message.getText() + "\0";
+        os1.write(msgEntry.getBytes());
+        os1.flush();
+
+//        String clientMessage = message.getText();
+//        PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
+//        System.out.println(clientMessage);
+//        writer.println(clientMessage);
+//        updateMessage(nickStr + ";" + clientMessage);
+
+        updateMessage(nickStr + ";" + msgEntry);
         message.setText("");
     }
 
