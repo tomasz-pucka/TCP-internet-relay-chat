@@ -17,10 +17,6 @@
 #define QUEUE_SIZE 100
 #define NICK_SIZE 24
 
-//nick nie moze zawierac znaku ";"
-//maksymalna liczba pokojow: 30
-//maksymalna liczba znakow w nicku: 15
-
 char ip_addr[20] = "127.0.0.1";
 int port_nr = 1234;
 char accept_error = 0, recv_error = 0, send_error = 0;
