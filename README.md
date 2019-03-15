@@ -4,17 +4,18 @@ University project for "Computer Networks". Concurrent TCP server and client imp
 
 Task description in file "zasady_projektow.pdf".
 
-### Prerequisites
+## Prerequisites
 
 * Linux OS (with BSD Sockets API and pthread library)
 
-### Compiling
+## Compiling
 
 ```
 gcc -Wall -pthread server.c -o server
 gcc -Wall -pthread client.c -o client
 ```
-### Running
+
+## Running
 
 | Server | Client |
 | --- | --- |
@@ -24,6 +25,6 @@ gcc -Wall -pthread client.c -o client
 | | Type your room and nickname (e.g. 1;user01) |
 | | Write messages to others. |
 
-### Screenshots
+## Screenshots
 
-<img src="./IRC_screen01.png" alt="screenshot" width="400">
+<img src="./IRC_screen01.png" alt="screenshot">
