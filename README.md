@@ -7,12 +7,13 @@ Task description in file "zasady_projektow.pdf".
 ## Prerequisites
 
 * Linux OS (with BSD Sockets API and pthread library)
+* C compiler (e.g GCC)
 
 ## Compiling
 
 ```
-gcc -Wall -pthread server.c -o server
-gcc -Wall -pthread client.c -o client
+gcc -pthread server.c -o server
+gcc -pthread client.c -o client
 ```
 
 ## Running
